@@ -246,9 +246,6 @@ export default function MapPage() {
                     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
                     isScrollingRef.current = false;
                   }}
-                  onMouseLeave={() => {
-                    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-                  }}
                   onTouchStart={() => {
                     isScrollingRef.current = false;
                     setTimeout(() => { isScrollingRef.current = true; }, 150);
