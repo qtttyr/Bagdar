@@ -1,13 +1,12 @@
-# Ignore everything
+# Ignore EVERYTHING
 *
 
-# But don't ignore these
+# ONLY allow backend
 !backend/
+!backend/**
 !Dockerfile
 !cloudbuild.yaml
-!*.py
-!requirements.txt
 
-# Git
+# No git
 .git/
 .gitignore
