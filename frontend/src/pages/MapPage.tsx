@@ -21,6 +21,7 @@ export default function MapPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedStep, setSelectedStep] = useState<{title: string; description: string; type: StepType; duration: number} | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isScrollingRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -222,20 +223,40 @@ export default function MapPage() {
                 {/* Card */}
                 <button
                   onMouseDown={() => {
+                    isScrollingRef.current = false;
+                    const startY = window.scrollY;
+                    const checkScroll = setInterval(() => {
+                      if (Math.abs(window.scrollY - startY) > 5) {
+                        isScrollingRef.current = true;
+                        clearInterval(checkScroll);
+                      }
+                    }, 50);
+                    setTimeout(() => clearInterval(checkScroll), 300);
                     longPressTimerRef.current = setTimeout(() => {
-                      setSelectedStep({ title: step.title, description: step.description || "", type: step.type as StepType, duration: step.duration });
-                    }, 500);
+                      if (!isScrollingRef.current) {
+                        setSelectedStep({ title: step.title, description: step.description || "", type: step.type as StepType, duration: step.duration });
+                      }
+                    }, 800);
                   }}
                   onMouseUp={() => {
                     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                    isScrollingRef.current = false;
+                  }}
+                  onMouseLeave={() => {
+                    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                    isScrollingRef.current = false;
                   }}
                   onMouseLeave={() => {
                     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
                   }}
                   onTouchStart={() => {
+                    isScrollingRef.current = false;
+                    setTimeout(() => { isScrollingRef.current = true; }, 150);
                     longPressTimerRef.current = setTimeout(() => {
-                      setSelectedStep({ title: step.title, description: step.description || "", type: step.type as StepType, duration: step.duration });
-                    }, 500);
+                      if (isScrollingRef.current) {
+                        setSelectedStep({ title: step.title, description: step.description || "", type: step.type as StepType, duration: step.duration });
+                      }
+                    }, 800);
                   }}
                   onTouchEnd={() => {
                     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
