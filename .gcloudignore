@@ -1,0 +1,13 @@
+# Ignore everything
+*
+
+# But don't ignore these
+!backend/
+!Dockerfile
+!cloudbuild.yaml
+!*.py
+!requirements.txt
+
+# Git
+.git/
+.gitignore
