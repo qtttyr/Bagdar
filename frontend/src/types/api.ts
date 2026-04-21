@@ -25,6 +25,15 @@ export interface RoadmapRequest {
 /** Allowed step types */
 export type StepType = "learning" | "practice" | "break";
 
+/** Checklist item types */
+export type ChecklistType = "theory" | "math" | "practice" | "visual";
+
+/** Single checklist item */
+export interface ChecklistItem {
+  text: string;
+  type: ChecklistType;
+}
+
 /** Single step (station) of the roadmap */
 export interface Step {
   id: string;
@@ -33,6 +42,7 @@ export interface Step {
   description?: string | null;
   type: StepType;
   order: number;
+  checklist?: ChecklistItem[]; // detailed learning checklist
 }
 
 /** Break entry (adaptive break suggestion) */
