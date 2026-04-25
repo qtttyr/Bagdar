@@ -32,7 +32,7 @@ class GeminiService:
 {CHECKLIST_REQUIREMENT}
 
 Используй строго этот JSON-формат:
-(JSON_SCHEMA}
+{JSON_SCHEMA}
 
 Перемежай шаги типа "learning" и "practice" перерывами. Каждый перерыв — 5-15 минут."""
 
