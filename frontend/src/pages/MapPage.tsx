@@ -18,15 +18,15 @@ export default function MapPage() {
   const quote = location.state?.quote as GenerateResponse["quote"] | null;
 
   const [completed, setCompleted] = useState<Record<string, boolean>>({});
-  const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedStep, setSelectedStep] = useState<{
+    stepId: string;
     title: string;
     description: string;
     type: StepType;
     duration: number;
     checklist?: ChecklistItem[];
   } | null>(null);
-  const [checkedItems, setCheckedItems] = useState<Record<string, Record<number, boolean>>>({});
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean[]>>({});
 
   const handleBack = useCallback(() => {
     navigate("/");
@@ -49,14 +49,31 @@ export default function MapPage() {
   }, [plan]);
 
   const toggleChecklistItem = useCallback((stepId: string, itemIndex: number) => {
-    setCheckedItems(prev => ({
-      ...prev,
-      [stepId]: {
-        ...prev[stepId],
-        [itemIndex]: !prev[stepId]?.[itemIndex]
-      }
-    }));
+    setCheckedItems((prev) => {
+      const existing = prev[stepId] || [];
+      const updated = [...existing];
+      updated[itemIndex] = !updated[itemIndex];
+      return { ...prev, [stepId]: updated };
+    });
   }, []);
+
+  const closePopup = useCallback(() => {
+    setSelectedStep(null);
+  }, []);
+
+  const finishAndClose = useCallback(() => {
+    if (selectedStep) {
+      setCompleted((prev) => ({ ...prev, [selectedStep.stepId]: true }));
+    }
+    setSelectedStep(null);
+  }, [selectedStep]);
+
+  const steps = useMemo(() => {
+    return plan ? [...plan.steps].sort((a, b) => a.order - b.order) : [];
+  }, [plan]);
+
+  const totalMinutes = plan?.total_duration ?? 0;
+  const completedCount = Object.values(completed).filter(Boolean).length;
 
   if (!plan) {
     return (
@@ -65,46 +82,39 @@ export default function MapPage() {
           <div className="w-24 h-24 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
             <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={1.5} className="w-10 h-10 text-white" />
           </div>
-          <h2 className="text-2xl font-bold">Маршрут не найден</h2>
-          <p className="text-muted-foreground">Создайте маршрут в генераторе</p>
+          <h2 className="text-2xl font-bold">Map not found</h2>
+          <p className="text-muted-foreground">Create a route in the generator</p>
           <Button onClick={handleBack} className="mt-4">
-            К генератору
+            To Generator
           </Button>
         </div>
       </div>
     );
   }
 
-  const steps = useMemo(() => {
-    return [...plan.steps].sort((a, b) => a.order - b.order);
-  }, [plan.steps]);
-
-  const totalMinutes = plan.total_duration;
-  const completedCount = Object.values(completed).filter(Boolean).length;
-
   const typeConfig = {
     learning: {
       gradient: "from-violet-500 to-purple-600",
       bg: "bg-violet-500",
-      label: "Обучение",
+      label: "Learning",
     },
     practice: {
       gradient: "from-cyan-500 to-blue-600",
       bg: "bg-cyan-500",
-      label: "Практика",
+      label: "Practice",
     },
     break: {
       gradient: "from-amber-400 to-orange-500",
       bg: "bg-amber-400",
-      label: "Перерыв",
+      label: "Break",
     },
   };
 
   const checklistTypeLabels = {
-    theory: { label: "Теория", color: "bg-blue-500" },
-    math: { label: "Математика", color: "bg-purple-500" },
-    practice: { label: "Практика", color: "bg-green-500" },
-    visual: { label: "Визуализация", color: "bg-orange-500" },
+    theory: { label: "Theory", color: "bg-blue-500" },
+    math: { label: "Math", color: "bg-purple-500" },
+    practice: { label: "Practice", color: "bg-green-500" },
+    visual: { label: "Visual", color: "bg-orange-500" },
   };
 
   return (
@@ -134,15 +144,6 @@ export default function MapPage() {
         .station-card.completed {
           opacity: 0.7;
         }
-        
-        .station-card.active {
-          animation: pulse-ring 0.6s ease-out;
-        }
-        
-        @keyframes pulse-ring {
-          0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
-          100% { box-shadow: 0 0 0 12px rgba(139, 92, 246, 0); }
-        }
 
         @media (max-width: 640px) {
           .map-container {
@@ -159,13 +160,13 @@ export default function MapPage() {
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition"
           >
             <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={1.5} className="w-4 h-4" />
-            <span className="hidden sm:inline">Назад</span>
+            <span className="hidden sm:inline">Back</span>
           </button>
 
           <div className="text-center">
             <h1 className="font-heading font-bold text-lg">{plan.title}</h1>
             <p className="text-xs text-muted-foreground">
-              {totalMinutes} мин • {completedCount}/{steps.length} станций
+              {totalMinutes} min - {completedCount}/{steps.length} stations
             </p>
           </div>
 
@@ -189,7 +190,7 @@ export default function MapPage() {
         {quote && (
           <div className="mb-6 p-4 rounded-2xl bg-gradient-to-br from-card to-background border border-border/40">
             <div className="text-xs font-medium text-muted-foreground mb-2">
-              Мудрость дня
+              Wisdom of the day
             </div>
             <div className="text-lg font-heading leading-tight">
               <div className="italic">{quote.kz}</div>
@@ -206,11 +207,8 @@ export default function MapPage() {
           {steps.map((step, index) => {
             const config = typeConfig[step.type as StepType] ?? typeConfig.break;
             const isCompleted = completed[step.id];
-            const isActive = activeId === step.id;
-            const stepCheckedItems = checkedItems[step.id] || {};
-            const checklistProgress = step.checklist 
-              ? Object.values(stepCheckedItems).filter(Boolean).length 
-              : 0;
+            const stepCheckedItems = checkedItems[step.id] || [];
+            const checklistProgress = stepCheckedItems.filter(Boolean).length;
             const hasChecklist = step.checklist && step.checklist.length > 0;
 
             return (
@@ -219,7 +217,6 @@ export default function MapPage() {
                 className={`
                   station-card relative flex gap-4 md:pl-12 py-3
                   ${isCompleted ? "completed" : ""}
-                  ${isActive ? "active" : ""}
                 `}
               >
                 {/* Timeline dot */}
@@ -245,17 +242,13 @@ export default function MapPage() {
                 {/* Card */}
                 <button
                   onClick={() => {
-                    toggleComplete(step.id);
-                    setActiveId(step.id);
-                    setTimeout(() => setActiveId(null), 600);
-                  }}
-                  onDoubleClick={() => {
-                    setSelectedStep({ 
-                      title: step.title, 
-                      description: step.description || "", 
-                      type: step.type as StepType, 
+                    setSelectedStep({
+                      stepId: step.id,
+                      title: step.title,
+                      description: step.description || "",
+                      type: step.type as StepType,
                       duration: step.duration,
-                      checklist: step.checklist 
+                      checklist: step.checklist,
                     });
                   }}
                   className={`
@@ -273,7 +266,7 @@ export default function MapPage() {
                           {config.label}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {step.duration} мин
+                          {step.duration} min
                         </span>
                         {hasChecklist && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
@@ -306,11 +299,11 @@ export default function MapPage() {
         </div>
       </main>
 
-      {/* Checklist Modal */}
-      {selectedStep && selectedStep.checklist && selectedStep.checklist.length > 0 && (
+      {/* Detail Popup */}
+      {selectedStep && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedStep(null)}
+          onClick={closePopup}
         >
           <div className="absolute inset-0 bg-black/60" />
           <div 
@@ -320,17 +313,17 @@ export default function MapPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <span className="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary font-medium">
-                  {typeConfig[selectedStep.type]?.label || "Задача"}
+                  {typeConfig[selectedStep.type]?.label || "Task"}
                 </span>
                 <span className="text-sm text-muted-foreground ml-2">
-                  {selectedStep.duration} мин
+                  {selectedStep.duration} min
                 </span>
               </div>
               <button
-                onClick={() => setSelectedStep(null)}
+                onClick={closePopup}
                 className="w-8 h-8 rounded-lg hover:bg-background/50 flex items-center justify-center"
               >
-                ✕
+                X
               </button>
             </div>
             
@@ -339,46 +332,69 @@ export default function MapPage() {
               <p className="text-muted-foreground mb-4">{selectedStep.description}</p>
             )}
             
-            <div className="space-y-2 mb-6">
-              {selectedStep.checklist.map((item, index) => {
-                const isChecked = checkedItems[selectedStep.title]?.[index] || false;
-                const typeInfo = checklistTypeLabels[item.type] || checklistTypeLabels.theory;
-                
-                return (
-                  <label
-                    key={index}
-                    className={`
-                      flex items-start gap-3 p-3 rounded-xl cursor-pointer transition
-                      ${isChecked ? "bg-green-500/10 border border-green-500/30" : "bg-background/50 border border-transparent hover:border-border"}
-                    `}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => toggleChecklistItem(selectedStep.title, index)}
-                      className="mt-1 w-5 h-5 rounded border-2 border-primary/30 accent-primary"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${typeInfo.color} text-white`}>
-                          {typeInfo.label}
+            {/* Checklist if exists */}
+            {selectedStep.checklist && selectedStep.checklist.length > 0 && (
+              <div className="space-y-2 mb-6">
+                {selectedStep.checklist.map((item, index) => {
+                  const isChecked = (checkedItems[selectedStep.stepId] || [])[index] || false;
+                  const typeInfo = checklistTypeLabels[item.type] || checklistTypeLabels.theory;
+                  
+                  return (
+                    <label
+                      key={index}
+                      className={`
+                        flex items-start gap-3 p-3 rounded-xl cursor-pointer transition
+                        ${isChecked ? "bg-green-500/10 border border-green-500/30" : "bg-background/50 border border-transparent hover:border-border"}
+                      `}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleChecklistItem(selectedStep.stepId, index)}
+                        className="mt-1 w-5 h-5 rounded border-2 border-primary/30 accent-primary"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${typeInfo.color} text-white`}>
+                            {typeInfo.label}
+                          </span>
+                        </div>
+                        <span className={isChecked ? "line-through text-muted-foreground" : ""}>
+                          {item.text}
                         </span>
                       </div>
-                      <span className={isChecked ? "line-through text-muted-foreground" : ""}>
-                        {item.text}
-                      </span>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
             
-            <Button 
-              onClick={() => setSelectedStep(null)} 
-              className="w-full"
-            >
-              Закрыть
-            </Button>
+            {/* Complete toggle */}
+            <label className="flex items-center gap-3 p-3 rounded-xl bg-background/50 border border-transparent hover:border-border cursor-pointer mb-4">
+              <input
+                type="checkbox"
+                checked={completed[selectedStep.stepId] || false}
+                onChange={() => toggleComplete(selectedStep.stepId)}
+                className="mt-1 w-5 h-5 rounded border-2 border-primary/30 accent-primary"
+              />
+              <span className="font-medium">Completed</span>
+            </label>
+            
+            <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                onClick={closePopup} 
+                className="flex-1"
+              >
+                Close
+              </Button>
+              <Button 
+                onClick={finishAndClose} 
+                className="flex-1"
+              >
+                Finish and Close
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -387,10 +403,10 @@ export default function MapPage() {
       <div className="fixed bottom-0 left-0 right-0 md:hidden bg-background/90 backdrop-blur-md border-t border-border/40 p-4">
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={resetAll} className="flex-1">
-            Сброс
+            Reset
           </Button>
           <Button variant="outline" size="sm" onClick={markAll} className="flex-1">
-            Всё
+            All
           </Button>
         </div>
       </div>
@@ -398,10 +414,10 @@ export default function MapPage() {
       {/* Desktop Action Buttons */}
       <div className="hidden md:flex fixed bottom-6 right-6 gap-2">
         <Button variant="outline" onClick={resetAll}>
-          Сбросить
+          Reset
         </Button>
         <Button onClick={markAll}>
-          Отметить всё
+          Mark All
         </Button>
       </div>
     </div>
