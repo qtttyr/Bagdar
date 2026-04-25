@@ -13,7 +13,7 @@ from app.schemas.response import (
     RoadmapResponse,
     Step,
 )
-from app.templates.prompts import JSON_SCHEMA, QUOTE_TEMPLATES, SYSTEM_PROMPTS
+from app.templates.prompts import CHECKLIST_REQUIREMENT, JSON_SCHEMA, QUOTE_TEMPLATES, SYSTEM_PROMPTS
 
 
 class GeminiService:
@@ -29,8 +29,10 @@ class GeminiService:
 Темы: {topics_text}
 Уровень: {request.level}
 
-Используй только этот JSON-формат:
-{JSON_SCHEMA}
+{CHECKLIST_REQUIREMENT}
+
+Используй строго этот JSON-формат:
+(JSON_SCHEMA}
 
 Перемежай шаги типа "learning" и "practice" перерывами. Каждый перерыв — 5-15 минут."""
 
@@ -49,6 +51,7 @@ class GeminiService:
                 description=s.get("description"),
                 type=s["type"],
                 order=s["order"],
+                checklist=s.get("checklist", []),
             )
             for s in data["steps"]
         ]

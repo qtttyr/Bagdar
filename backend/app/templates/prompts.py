@@ -117,10 +117,13 @@ JSON_SCHEMA = """{
       "title": "тема",
       "duration": 25,
       "description": "краткое описание",
-      "type": "learning|practice|break",
+      "type": "learning",
       "order": 1,
       "checklist": [
-        {"text": "конкретное действие", "type": "theory|math|practice|visual"}
+        {"text": "конкретный навык 1", "type": "theory"},
+        {"text": "конкретный навык 2", "type": "math"},
+        {"text": "конкретный навык 3", "type": "practice"},
+        {"text": "конкретный навык 4", "type": "visual"}
       ]
     }
   ],
@@ -130,3 +133,9 @@ JSON_SCHEMA = """{
   "persona": "aksakal|abay|nomad",
   "created_at": "ISO timestamp"
 }"""
+
+# ОБЯЗАТЕЛЬНО: для каждого learning шага добавь минимум 4 пункта в checklist
+CHECKLIST_REQUIREMENT = """ВАЖНЕЙШЕЕ ПРАВИЛО:
+- Для каждого шага с type="learning" поле "checklist" ДОЛЖНО содержать массив из 4-6 объектов
+- Каждый объект ChecklistItem имеет поля "text" (конкретное действие/навык) и "type" (theory/math/practice/visual)
+- БЕЗ checklist шаг learning считается неполным!"""
