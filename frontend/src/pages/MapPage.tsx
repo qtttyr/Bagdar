@@ -4,6 +4,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   ArrowLeft01Icon,
   CheckmarkCircleIcon,
+  PlayIcon,
 } from "@hugeicons/core-free-icons";
 import type { GenerateResponse, ChecklistItem } from "@/types/api";
 import { Button } from "@/components/ui/button";
@@ -35,18 +36,6 @@ export default function MapPage() {
   const toggleComplete = useCallback((stepId: string) => {
     setCompleted((prev) => ({ ...prev, [stepId]: !prev[stepId] }));
   }, []);
-
-  const resetAll = useCallback(() => {
-    setCompleted({});
-    setCheckedItems({});
-  }, []);
-
-  const markAll = useCallback(() => {
-    if (!plan) return;
-    const all: Record<string, boolean> = {};
-    plan.steps.forEach((s) => { all[s.id] = true; });
-    setCompleted(all);
-  }, [plan]);
 
   const toggleChecklistItem = useCallback((stepId: string, itemIndex: number) => {
     setCheckedItems((prev) => {
@@ -399,27 +388,38 @@ export default function MapPage() {
         </div>
       )}
 
-      {/* Bottom Action Bar - Mobile only */}
-      <div className="fixed bottom-0 left-0 right-0 md:hidden bg-background/90 backdrop-blur-md border-t border-border/40 p-4">
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={resetAll} className="flex-1">
-            Reset
-          </Button>
-          <Button variant="outline" size="sm" onClick={markAll} className="flex-1">
-            All
-          </Button>
+      {/* Focus Bar - bottom */}
+      {steps.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl z-40">
+          <div className="bg-card/80 backdrop-blur-md border border-border/50 rounded-2xl px-6 py-4 shadow-2xl flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-muted-foreground">Текущее задание</div>
+              <div className="font-semibold truncate">{steps.find(s => !completed[s.id])?.title || steps[0]?.title}</div>
+            </div>
+            <Button 
+              onClick={() => {
+                const currentStep = steps.find(s => !completed[s.id]) || steps[0];
+                if (currentStep) {
+                  navigate("/nomad", { 
+                    state: { 
+                      step: { 
+                        title: currentStep.title, 
+                        duration: currentStep.duration, 
+                        type: currentStep.type 
+                      }, 
+                      planTitle: plan.title 
+                    } 
+                  });
+                }
+              }}
+              className="bg-gradient-to-r from-amber-500 to-orange-500 text-white gap-2 hover:from-amber-600 hover:to-orange-600"
+            >
+              <HugeiconsIcon icon={PlayIcon} strokeWidth={1.5} className="w-4 h-4" />
+              Nomad Mode
+            </Button>
+          </div>
         </div>
-      </div>
-
-      {/* Desktop Action Buttons */}
-      <div className="hidden md:flex fixed bottom-6 right-6 gap-2">
-        <Button variant="outline" onClick={resetAll}>
-          Reset
-        </Button>
-        <Button onClick={markAll}>
-          Mark All
-        </Button>
-      </div>
+      )}
     </div>
   );
 }
