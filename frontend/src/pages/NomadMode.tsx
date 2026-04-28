@@ -18,13 +18,12 @@ export default function NomadMode() {
   const { step, planTitle } = location.state || {};
 
   const [timeLeft, setTimeLeft] = useState((step?.duration || 25) * 60);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
 
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -38,101 +37,62 @@ export default function NomadMode() {
     break: { label: "Перерыв", gradient: "from-amber-400 to-orange-500" },
   };
 
-  const currentType = typeConfig[step?.type as StepType] ?? typeConfig.learning;
+  const currentType = typeConfig[(step?.type as StepType) ?? "learning"];
 
-  // Initialize audio
+  // Initialize Media Session
   useEffect(() => {
-    const initAudio = async () => {
-      try {
-        const ctx = new AudioContext();
-        const response = await fetch("/audio/nomad-focus.mp3");
-        const arrayBuffer = await response.arrayBuffer();
-        const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    if ("mediaSession" in navigator && step) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: step.title || "Фокус",
+        artist: "Baǵdar",
+        album: planTitle || "Обучение",
+        artwork: [
+          { src: "/logo.svg", sizes: "512x512", type: "image/svg+xml" },
+        ],
+      });
 
-        const source = ctx.createBufferSource();
-        source.buffer = audioBuffer;
-        source.loop = true;
+      navigator.mediaSession.setActionHandler("play", () => {
+        audioRef.current?.play();
+        setIsPlaying(true);
+      });
 
-        const gainNode = ctx.createGain();
-        gainNode.gain.setValueAtTime(0, ctx.currentTime);
-        gainNode.gain.linearRampToValueAtTime(1, ctx.currentTime + 2);
-
-        source.connect(gainNode);
-        gainNode.connect(ctx.destination);
-
-        source.start();
-
-        audioCtxRef.current = ctx;
-        sourceRef.current = source;
-        gainNodeRef.current = gainNode;
-
-        // Media Session API
-        if ("mediaSession" in navigator) {
-          navigator.mediaSession.metadata = new MediaMetadata({
-            title: step?.title || "Фокус",
-            artist: "Baǵdar",
-            album: planTitle || "Обучение",
-            artwork: [
-              { src: "/icons/logo-512.png", sizes: "512x512", type: "image/png" },
-            ],
-          });
-
-          navigator.mediaSession.setActionHandler("play", () => {
-            setIsPlaying(true);
-            ctx.resume();
-          });
-
-          navigator.mediaSession.setActionHandler("pause", () => {
-            setIsPlaying(false);
-            ctx.suspend();
-          });
-        }
-      } catch (e) {
-        console.error("Audio init error:", e);
-      }
-    };
-
-    initAudio();
-
-    return () => {
-      sourceRef.current?.stop();
-      audioCtxRef.current?.close();
-    };
+      navigator.mediaSession.setActionHandler("pause", () => {
+        audioRef.current?.pause();
+        setIsPlaying(false);
+      });
+    }
   }, [step, planTitle]);
 
   // Timer
   useEffect(() => {
     if (!isPlaying || timeLeft <= 0) return;
 
-    const interval = setInterval(() => {
+    timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          clearInterval(interval);
+          clearInterval(timerRef.current!);
           setIsPlaying(false);
           setShowNotification(true);
           // Stop music
-          gainNodeRef.current?.gain.linearRampToValueAtTime(0, audioCtxRef.current!.currentTime + 1);
-          setTimeout(() => {
-            sourceRef.current?.stop();
-          }, 1000);
+          audioRef.current?.pause();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => clearInterval(timerRef.current!);
   }, [isPlaying, timeLeft]);
 
   const togglePlay = useCallback(() => {
     if (isPlaying) {
-      audioCtxRef.current?.suspend();
+      audioRef.current?.pause();
       setIsPlaying(false);
       if ("mediaSession" in navigator) {
         navigator.mediaSession.playbackState = "paused";
       }
     } else {
-      audioCtxRef.current?.resume();
+      audioRef.current?.play();
       setIsPlaying(true);
       if ("mediaSession" in navigator) {
         navigator.mediaSession.playbackState = "playing";
@@ -141,35 +101,26 @@ export default function NomadMode() {
   }, [isPlaying]);
 
   const toggleMute = useCallback(() => {
-    if (isMuted) {
-      gainNodeRef.current?.gain.linearRampToValueAtTime(1, audioCtxRef.current!.currentTime + 0.3);
-      setIsMuted(false);
-    } else {
-      gainNodeRef.current?.gain.linearRampToValueAtTime(0, audioCtxRef.current!.currentTime + 0.3);
-      setIsMuted(true);
+    if (audioRef.current) {
+      audioRef.current.muted = !isMuted;
+      setIsMuted(!isMuted);
     }
   }, [isMuted]);
 
   const handleBack = () => {
-    sourceRef.current?.stop();
-    audioCtxRef.current?.close();
+    audioRef.current?.pause();
     navigate("/map");
   };
 
   const handleContinue = () => {
     setShowNotification(false);
-    // Start 5 min break
     setTimeLeft(5 * 60);
     setIsPlaying(true);
-    // Restart audio if needed
-    if (audioCtxRef.current?.state === "closed") {
-      // Re-init audio
-    }
+    audioRef.current?.play();
   };
 
   const handleFinish = () => {
-    sourceRef.current?.stop();
-    audioCtxRef.current?.close();
+    audioRef.current?.pause();
     navigate("/map");
   };
 
@@ -193,6 +144,14 @@ export default function NomadMode() {
       />
       {/* Overlay */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+
+      {/* Audio element */}
+      <audio
+        ref={audioRef}
+        src="/audio/nomad-focus.mp3"
+        loop
+        playsInline
+      />
 
       {/* Content */}
       <div className="relative z-10 h-full flex flex-col">
@@ -278,7 +237,7 @@ export default function NomadMode() {
               <div className="text-6xl mb-4">🎉</div>
               <h3 className="font-heading text-2xl font-bold">Уақыт таусылды!</h3>
               <p className="text-muted-foreground">
-                Жолың басында жүрген жақсы, жолдың соңында жүрген одан да жақсы. 
+                Жолдың басында жүрген жақсы, жолдың соңында жүрген одан да жақсы.
                 <br />
                 <span className="text-sm">Время вышло! Продолжим покорять знания?</span>
               </p>
