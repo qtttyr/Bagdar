@@ -3,7 +3,7 @@
  * Kazakh original + Russian translation — the cultural soul of Baǵdar.
  */
 
-import type { PersonaType, QuoteResponse } from "./types";
+import type { PersonaType, QuoteResponse } from "./types.js";
 
 const QUOTES: Record<PersonaType, QuoteResponse> = {
   aksakal: {

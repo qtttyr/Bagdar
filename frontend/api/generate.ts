@@ -12,12 +12,12 @@
  * 5. Return fully typed GenerateResponse
  */
 
-import type { PersonaType, RoadmapRequest, GenerateResponse, RoadmapResponse, RoadmapStep, RoadmapBreak } from "./_lib/types";
-import { SYSTEM_PROMPTS, buildUserMessage } from "./_lib/prompts";
-import { getQuote } from "./_lib/quotes";
-import { ROADMAP_SCHEMA } from "./_lib/schemas";
-import { generateStructured } from "./_lib/groq";
-import { parsePersona, validateDuration, jsonResponse, errorResponse, handleOptions } from "./_lib/utils";
+import type { PersonaType, RoadmapRequest, GenerateResponse, RoadmapResponse, RoadmapStep, RoadmapBreak } from "./_lib/types.js";
+import { SYSTEM_PROMPTS, buildUserMessage } from "./_lib/prompts.js";
+import { getQuote } from "./_lib/quotes.js";
+import { ROADMAP_SCHEMA } from "./_lib/schemas.js";
+import { generateStructured } from "./_lib/groq.js";
+import { parsePersona, validateDuration, jsonResponse, errorResponse, handleOptions } from "./_lib/utils.js";
 
 /**
  * Raw shape returned by Groq before we map it to our response types.

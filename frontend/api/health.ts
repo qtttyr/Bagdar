@@ -5,8 +5,8 @@
  * Returns status, timestamp, and the active AI model.
  */
 
-import { MODEL } from "./_lib/groq";
-import { jsonResponse, handleOptions } from "./_lib/utils";
+import { MODEL } from "./_lib/groq.js";
+import { jsonResponse, handleOptions } from "./_lib/utils.js";
 
 export async function GET(request: Request): Promise<Response> {
   const origin = request.headers.get("origin");

@@ -3,7 +3,7 @@
  * CORS, response helpers, and error handling.
  */
 
-import type { PersonaType } from "./types";
+import type { PersonaType } from "./types.js";
 
 /** Allowed origins for CORS */
 const ALLOWED_ORIGINS = [

@@ -7,7 +7,7 @@
  * NOMAD   — The Biohacker. Speed, modern energy, productivity.
  */
 
-import type { PersonaType } from "./types";
+import type { PersonaType } from "./types.js";
 
 export const AKSAKAL_PROMPT = `You are a strict Aқсақал (Elder), a nomadic mentor. Your style:
 - Dense schedules with short breaks
