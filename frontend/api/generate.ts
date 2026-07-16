@@ -2,6 +2,7 @@
  * POST /api/generate
  *
  * Main endpoint — generates a learning roadmap using Groq AI.
+ * Zero external dependencies — uses native fetch() and crypto.randomUUID().
  *
  * Flow:
  * 1. Validate incoming request body
@@ -11,7 +12,6 @@
  * 5. Return fully typed GenerateResponse
  */
 
-import { v4 as uuidv4 } from "uuid";
 import type { PersonaType, RoadmapRequest, GenerateResponse, RoadmapResponse, RoadmapStep, RoadmapBreak } from "./_lib/types";
 import { SYSTEM_PROMPTS, buildUserMessage } from "./_lib/prompts";
 import { getQuote } from "./_lib/quotes";
@@ -22,23 +22,27 @@ import { parsePersona, validateDuration, jsonResponse, errorResponse, handleOpti
 /**
  * Raw shape returned by Groq before we map it to our response types.
  */
+interface RawStep {
+  id: string;
+  title: string;
+  duration: number;
+  description?: string;
+  type: string;
+  order: number;
+  checklist?: Array<{ text: string; type: string }>;
+}
+
+interface RawBreak {
+  id: string;
+  duration: number;
+  message: string;
+}
+
 interface RawRoadmap {
   title: string;
   total_duration: number;
-  steps: Array<{
-    id: string;
-    title: string;
-    duration: number;
-    description?: string;
-    type: string;
-    order: number;
-    checklist?: Array<{ text: string; type: string }>;
-  }>;
-  breaks: Array<{
-    id: string;
-    duration: number;
-    message: string;
-  }>;
+  steps: RawStep[];
+  breaks: RawBreak[];
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -76,7 +80,6 @@ export async function POST(request: Request): Promise<Response> {
       systemPrompt,
       userMessage,
       jsonSchema: ROADMAP_SCHEMA.schema,
-      schemaName: ROADMAP_SCHEMA.name,
       temperature: 0.7,
       maxTokens: 4096,
     });
@@ -88,9 +91,9 @@ export async function POST(request: Request): Promise<Response> {
 
   // ---- Map to response types ----
   const now = new Date().toISOString();
-  const planId = uuidv4();
+  const planId = crypto.randomUUID();
 
-  const steps: RoadmapStep[] = (raw.steps ?? []).map((s) => ({
+  const steps: RoadmapStep[] = (raw.steps ?? []).map((s: RawStep) => ({
     id: s.id,
     title: s.title,
     duration: s.duration,
@@ -103,7 +106,7 @@ export async function POST(request: Request): Promise<Response> {
     })),
   }));
 
-  const breaks: RoadmapBreak[] = (raw.breaks ?? []).map((b) => ({
+  const breaks: RoadmapBreak[] = (raw.breaks ?? []).map((b: RawBreak) => ({
     id: b.id,
     duration: b.duration,
     message: b.message,
@@ -120,7 +123,6 @@ export async function POST(request: Request): Promise<Response> {
   };
 
   const quote = getQuote(persona);
-
   const response: GenerateResponse = { plan, quote };
 
   return jsonResponse(response, 200, origin);
