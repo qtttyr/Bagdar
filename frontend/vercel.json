@@ -1,10 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "name": "bagdar",
-  "buildCommand": "cd frontend && npm run build",
-  "outputDirectory": "frontend/dist",
-  "installCommand": "npm install",
   "functions": {
     "api/**/*.ts": {
       "runtime": "nodejs@22",
@@ -20,10 +16,6 @@
     {
       "source": "/api/v1/health",
       "destination": "/api/health"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
     }
   ]
 }

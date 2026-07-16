@@ -5,18 +5,12 @@
   "type": "module",
   "description": "Baǵdar — AI Learning Routes Across the Steppe",
   "scripts": {
+    "postinstall": "cd frontend && npm install",
     "dev": "vercel dev",
     "deploy": "vercel --prod",
     "build": "cd frontend && npm run build"
   },
-  "dependencies": {
-    "groq-sdk": "^0.19.0",
-    "uuid": "^11.1.0"
-  },
   "devDependencies": {
-    "@types/node": "^24.12.2",
-    "@types/uuid": "^10.0.0",
-    "typescript": "^5.8.3",
     "vercel": "^41.6.0"
   }
 }

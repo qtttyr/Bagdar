@@ -1,112 +1,91 @@
 # 🚀 Baǵdar Deployment Guide
 
-## Architecture — Two Backends
+## Architecture
 
 ```
-                        ┌─────────────────────┐
-                        │   Vercel (Hobby)     │
-                        │                      │
-                        │  ┌───────────────┐   │
-   User ───────────────►│  │ Frontend (PWA) │   │
-                        │  │  /frontend/dist │   │
-                        │  └───────┬───────┘   │
-                        │          │            │
-                        │  ┌───────▼───────┐   │
-                        │  │ API (Functions)│   │
-                        │  │  Groq AI       │   │
-                        │  │  gpt-oss-120b  │   │
-                        │  └───────────────┘   │
-                        └─────────────────────┘
-
-   Future production server:
-   Python FastAPI + Gemini (when you buy a server)
+                        ┌─────────────────────────────────┐
+                        │      Vercel (Hobby — Free)       │
+                        │                                  │
+   User ───────────────►│  frontend/                       │
+                        │    ├── dist/    (PWA static)     │
+                        │    ├── api/     (Vercel Functions)│
+                        │    └── vercel.json (config)      │
+                        │                                  │
+                        │  Groq AI — gpt-oss-120b          │
+                        └─────────────────────────────────┘
 ```
 
-### Free Tier (Vercel Hobby + Groq)
-- **Vercel Functions**: 1M invocations/mo, 4 CPU-hrs, 360 GB-hrs memory
-- **Groq API**: Rate-limited but generous free tier, ~6000 req/day
-- **~1000 users** fit comfortably within free limits
+### Free Tier — всё бесплатно
+- **Vercel Hobby**: 1M invocations/mo, 4 CPU-hrs, 360 GB-hrs
+- **Groq API**: щедрый free tier (~6000 req/day)
+- **~1000 пользователей** — с большим запасом
 
 ---
 
 ## Prerequisites
 
-- Node.js 18+ installed
+- Node.js 18+
 - [Vercel CLI](https://vercel.com/docs/cli) (`npm i -g vercel`)
-- GitHub account (for auto-deploy)
-- **Groq API key** from [console.groq.com](https://console.groq.com)
+- **Groq API key** — получить на [console.groq.com](https://console.groq.com)
 
 ---
 
-## Quick Deploy
+## Деплой
 
-### 1. Set up environment
+### 1. Зайти в папку frontend
 
 ```bash
-# Clone, then from project root:
+cd frontend
 npm install
-cd frontend && npm install && cd ..
 ```
 
-### 2. Deploy to Vercel
-
-```bash
-# One-command deploy:
-vercel --prod
-
-# You'll be prompted to:
-# - Log in / create Vercel account
-# - Link project
-# - Set GROQ_API_KEY environment variable
-```
-
-### 3. Set Groq API Key
-
-After first deploy, in **Vercel Dashboard → Your Project → Settings → Environment Variables**:
-
-```
-GROQ_API_KEY = gr_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-Add to **Production** and **Preview** environments.
-
-### 4. Re-deploy
+### 2. Деплой одной командой
 
 ```bash
 vercel --prod
 ```
 
-Done. Your backend is live at `https://your-project.vercel.app/api/health`.
+Vercel попросит:
+- Войти / создать аккаунт
+- Создать проект
+- Указать **Root Directory**: `frontend` (если спросит — уже по умолчанию)
+
+### 3. Добавить GROQ_API_KEY
+
+В **Vercel Dashboard → Settings → Environment Variables**:
+
+```
+GROQ_API_KEY = gr_твой_ключ
+```
+
+Добавить в окружения **Production** и **Preview**.
+
+### 4. Передеплоить
+
+```bash
+vercel --prod
+```
+
+Готово. API доступен:
+- `https://твой-проект.vercel.app/api/health`
+- `https://твой-проект.vercel.app/api/generate`
 
 ---
 
 ## Local Development
 
-### Option A: Vercel Dev (recommended)
-
 ```bash
-# Terminal 1 — API + static files (Vercel dev server)
-cd bagdar
-vercel dev    # → http://localhost:3000
+# Терминал 1 — Vercel dev (API + статика на localhost:3000)
+cd frontend
+vercel dev
 
-# Terminal 2 — Frontend hot-reload (Vite)
-cd bagdar/frontend
+# Терминал 2 — Vite hot-reload
+cd frontend
 npm run dev   # → http://localhost:5173
 ```
 
-### Option B: With Python backend (legacy)
-
-```bash
-# Terminal 1 — Python backend
-cd backend
-.venv\Scripts\activate
-uvicorn app.main:app --reload --port 8000
-
-# Terminal 2 — Frontend pointing to Python backend
-cd frontend
-set VITE_API_BASE_URL=http://localhost:8000
-npm run dev
-```
+В продакшене (Vercel) фронтенд и API на одном домене — env-var не нужен.  
+Для локальной разработки с `vercel dev` тоже работает из коробки.
 
 ---
 
@@ -114,22 +93,47 @@ npm run dev
 
 ```
 bagdar/
-├── api/                      # Vercel Functions (NEW lightweight backend)
-│   ├── _lib/
-│   │   ├── types.ts          # Shared TypeScript types
-│   │   ├── quotes.ts         # Kazakh+Russian wisdom quotes
-│   │   ├── prompts.ts        # System prompts for 3 mentors
-│   │   ├── schemas.ts        # JSON Schema for structured AI output
-│   │   ├── groq.ts           # Groq client + structured generation
-│   │   └── utils.ts          # CORS, response helpers, validation
-│   ├── generate.ts           # POST /api/generate — main AI endpoint
-│   └── health.ts             # GET /api/health
-├── backend/                  # Python FastAPI (legacy, for future server)
-├── frontend/                 # React PWA (unchanged)
-├── vercel.json               # Vercel routing & function config
-├── package.json              # Root deps (groq-sdk, uuid, vercel CLI)
-└── .env.example              # Environment variable template
+├── frontend/                    # ← ВСЁ здесь (деплоится на Vercel)
+│   ├── api/                     # Serverless Functions (TypeScript)
+│   │   ├── _lib/
+│   │   │   ├── types.ts         # Типы (общие с src/)
+│   │   │   ├── quotes.ts        # Цитаты на казахском и русском
+│   │   │   ├── prompts.ts       # Промпты: Аксакал, Абай, Номад
+│   │   │   ├── schemas.ts       # JSON Schema для structured output
+│   │   │   ├── groq.ts          # Groq client + генерация
+│   │   │   └── utils.ts         # CORS, валидация, ответы
+│   │   ├── generate.ts          # POST /api/generate
+│   │   ├── health.ts            # GET /api/health
+│   │   └── tsconfig.json
+│   ├── src/                     # React PWA (без изменений)
+│   ├── dist/                    # Сборка (генерируется)
+│   └── vercel.json              # Настройки Vercel (роутинг, функции)
+├── backend/                     # Python FastAPI (для будущего сервера)
+├── DEPLOY.md                    # Этот файл
+└── README.md                    # Описание проекта
 ```
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/generate` | Создать маршрут обучения (Groq AI) |
+| GET | `/api/health` | Проверка здоровья |
+| POST | `/api/v1/generate` | Алиас для совместимости |
+| GET | `/api/v1/health` | Алиас для совместимости |
+
+### Пример POST /api/generate
+
+```json
+{
+  "topics": ["physics", "FastAPI"],
+  "duration_minutes": 180,
+  "persona": "abay",
+  "level": "beginner"
+}
+```
+
+Ответ: `{ plan: RoadmapResponse, quote: QuoteResponse }`
 
 ---
 
