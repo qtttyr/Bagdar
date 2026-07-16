@@ -48,13 +48,20 @@ export async function generateStructured<T>({
 }: StructuredCompletionOptions): Promise<T> {
   const apiKey = getApiKey();
 
-  const response = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
+  // ── Request timeout: 15 seconds ──
+  // Prevents hanging requests from consuming Vercel Function runtime
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15_000);
+
+  try {
+    const response = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
       model: MODEL,
       temperature,
       max_tokens: maxTokens,
@@ -73,19 +80,22 @@ export async function generateStructured<T>({
     }),
   });
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "unknown error");
-    throw new Error(
-      `Groq API error (${response.status}): ${errorText}`
-    );
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "unknown error");
+      throw new Error(
+        `Groq API error (${response.status}): ${errorText}`
+      );
+    }
+
+    const data: { choices?: Array<{ message?: { content?: string } }> } = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+
+    if (!content) {
+      throw new Error("Empty response from Groq API — no content in choices");
+    }
+
+    return JSON.parse(content) as T;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const data: { choices?: Array<{ message?: { content?: string } }> } = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-
-  if (!content) {
-    throw new Error("Empty response from Groq API — no content in choices");
-  }
-
-  return JSON.parse(content) as T;
 }

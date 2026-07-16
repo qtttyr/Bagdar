@@ -16,6 +16,7 @@
  */
 
 import type { RoadmapRequest, GenerateResponse } from "@/types/api";
+import { signRequest } from "@/lib/crypto";
 
 const DEFAULT_TIMEOUT_MS = 60000;
 
@@ -95,6 +96,7 @@ async function tryEndpoints(
         headers,
         body: JSON.stringify(body),
         signal: combinedSignal,
+        credentials: "include", // send cookies (daily limit tracking)
       });
 
       clearTimeout(timer);
@@ -202,6 +204,16 @@ export async function generateRoadmap(
 ): Promise<GenerateResponse> {
   const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
+  // ── HMAC-SHA256 request signing ──
+  // Every request from this frontend is signed with a shared secret.
+  // The backend rejects unsigned/forged requests with 401.
+  const timestamp = Math.floor(Date.now() / 1000);
+  const bodyWithSig: Record<string, unknown> = {
+    ...request,
+    _ts: timestamp,
+    _sig: await signRequest(request as unknown as Record<string, unknown>, timestamp),
+  };
+
   // Candidate relative paths to attempt, in order.
   const fallbackCandidates = [
     // Common desired endpoint patterns:
@@ -216,7 +228,7 @@ export async function generateRoadmap(
     "api/generate",
   ];
 
-  const result = await tryEndpoints(fallbackCandidates, request, timeoutMs, options?.signal);
+  const result = await tryEndpoints(fallbackCandidates, bodyWithSig, timeoutMs, options?.signal);
 
   if (result.ok) {
     // We assume the server returned a shape compatible with GenerateResponse.

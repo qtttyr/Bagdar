@@ -1,15 +1,19 @@
 /**
  * POST /api/generate
  *
- * Main endpoint — generates a learning roadmap using Groq AI.
- * Zero external dependencies — uses native fetch() and crypto.randomUUID().
+ * Generates a learning roadmap using Groq AI.
  *
- * Flow:
- * 1. Validate incoming request body
- * 2. Select persona (system prompt + quote)
- * 3. Call Groq with structured JSON schema output
- * 4. Wrap response with cultural quote
- * 5. Return fully typed GenerateResponse
+ * ===== SECURITY CHAIN =====
+ * 1. OPTIONS preflight → 204
+ * 2. Origin check → 403 if unknown origin
+ * 3. User-Agent check → 403 if curl/wget/Python
+ * 4. Parse body → 400 if invalid JSON
+ * 5. Input validation → 400 if invalid fields
+ * 6. HMAC signature → 401 if forged or expired
+ * 7. Daily limit (signed cookie) → 429 if exceeded
+ * 8. Call Groq with timeout
+ * 9. On success → increment limit cookie
+ * 10. Return roadmap + quote
  */
 
 import type { PersonaType, RoadmapRequest, GenerateResponse, RoadmapResponse, RoadmapStep, RoadmapBreak } from "./_lib/types.js";
@@ -17,11 +21,24 @@ import { SYSTEM_PROMPTS, buildUserMessage } from "./_lib/prompts.js";
 import { getQuote } from "./_lib/quotes.js";
 import { ROADMAP_SCHEMA } from "./_lib/schemas.js";
 import { generateStructured } from "./_lib/groq.js";
-import { parsePersona, validateDuration, jsonResponse, errorResponse, handleOptions } from "./_lib/utils.js";
+import {
+  validateRequest,
+  checkOrigin,
+  checkUserAgent,
+  verifyRequestSignature,
+  checkDailyLimit,
+  buildIncrementCookie,
+  parsePersona,
+  validateDuration,
+  jsonResponse,
+  errorResponse,
+  handleOptions,
+} from "./_lib/utils.js";
 
-/**
- * Raw shape returned by Groq before we map it to our response types.
- */
+// ═══════════════════════════════════════
+//  RAW TYPES (Groq output before mapping)
+// ═══════════════════════════════════════
+
 interface RawStep {
   id: string;
   title: string;
@@ -45,35 +62,66 @@ interface RawRoadmap {
   breaks: RawBreak[];
 }
 
-export async function POST(request: Request): Promise<Response> {
-  const origin = request.headers.get("origin");
+// ═══════════════════════════════════════
+//  POST HANDLER
+// ═══════════════════════════════════════
 
-  // ---- OPTIONS preflight ----
+export async function POST(request: Request): Promise<Response> {
+  // ── 1. OPTIONS preflight ──
   const preflight = handleOptions(request);
   if (preflight) return preflight;
 
-  // ---- Parse body ----
-  let body: RoadmapRequest;
+  // ── 2. Origin check ──
+  const { allowed: originAllowed, origin } = checkOrigin(request);
+  if (!originAllowed) {
+    return errorResponse("Access denied: unknown origin", 403, origin);
+  }
+
+  // ── 3. User-Agent check ──
+  const uaCheck = checkUserAgent(request);
+  if (!uaCheck.allowed) {
+    console.warn("Blocked suspicious UA:", request.headers.get("user-agent"));
+    return errorResponse("Access denied: suspicious client", 403, origin);
+  }
+
+  // ── 4. Parse body ──
+  let body: Record<string, unknown>;
   try {
-    body = (await request.json()) as RoadmapRequest;
+    body = (await request.json()) as Record<string, unknown>;
   } catch {
     return errorResponse("Invalid JSON body", 400, origin);
   }
 
-  const topics = body.topics?.filter(Boolean) ?? [];
-  if (topics.length === 0) {
-    return errorResponse("At least one topic is required", 400, origin);
+  // ── 5. Input validation ──
+  const validation = validateRequest(body);
+  if (!validation.valid) {
+    return errorResponse(validation.errors.join("; "), 400, origin);
   }
 
-  const durationMinutes = validateDuration(body.duration_minutes ?? 60);
-  const persona: PersonaType = parsePersona(body.persona ?? null);
-  const level = body.level ?? "beginner";
+  // ── 6. HMAC signature verification ──
+  const sigCheck = verifyRequestSignature(body);
+  if (!sigCheck.valid) {
+    console.warn("Blocked unsigned request:", sigCheck.reason);
+    return errorResponse("Forbidden: " + (sigCheck.reason || "invalid signature"), 401, origin);
+  }
 
-  // ---- Build prompts ----
+  // ── 7. Daily limit check (signed cookie) ──
+  const limitCheck = checkDailyLimit(request);
+  if (!limitCheck.allowed) {
+    return limitCheck.response!;
+  }
+
+  // ── Extract validated fields ──
+  const topics = (body.topics as string[]).map(t => t.trim());
+  const durationMinutes = validateDuration(body.duration_minutes as number);
+  const persona: PersonaType = parsePersona((body.persona as string) ?? null);
+  const level = (body.level as string) || "beginner";
+
+  // ── Build prompts ──
   const systemPrompt = SYSTEM_PROMPTS[persona];
   const userMessage = buildUserMessage({ topics, duration_minutes: durationMinutes, level });
 
-  // ---- Call Groq with structured output ----
+  // ── 8. Call Groq (with implicit timeout via generateStructured) ──
   let raw: RawRoadmap;
   try {
     raw = await generateStructured<RawRoadmap>({
@@ -89,7 +137,10 @@ export async function POST(request: Request): Promise<Response> {
     return errorResponse("AI generation failed. Please try again.", 502, origin);
   }
 
-  // ---- Map to response types ----
+  // ── 9. Generation succeeded → increment limit cookie ──
+  const incrementCookie = buildIncrementCookie(request);
+
+  // ── 10. Map to response types ──
   const now = new Date().toISOString();
   const planId = crypto.randomUUID();
 
@@ -125,5 +176,7 @@ export async function POST(request: Request): Promise<Response> {
   const quote = getQuote(persona);
   const response: GenerateResponse = { plan, quote };
 
-  return jsonResponse(response, 200, origin);
+  return jsonResponse(response, 200, origin, {
+    "Set-Cookie": incrementCookie,
+  });
 }
