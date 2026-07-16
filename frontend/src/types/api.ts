@@ -39,10 +39,10 @@ export interface Step {
   id: string;
   title: string;
   duration: number; // minutes
-  description?: string | null;
+  description: string;
   type: StepType;
   order: number;
-  checklist?: ChecklistItem[]; // detailed learning checklist
+  checklist: ChecklistItem[]; // detailed learning checklist
 }
 
 /** Break entry (adaptive break suggestion) */

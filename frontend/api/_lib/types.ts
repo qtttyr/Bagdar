@@ -18,10 +18,10 @@ export interface RoadmapStep {
   id: string;
   title: string;
   duration: number;
-  description?: string | null;
+  description: string;
   type: StepType;
   order: number;
-  checklist?: ChecklistItem[];
+  checklist: ChecklistItem[];
 }
 
 export interface RoadmapBreak {

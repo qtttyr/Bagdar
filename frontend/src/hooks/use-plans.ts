@@ -7,7 +7,7 @@ interface Step {
   id: string;
   title: string;
   duration: number;
-  description?: string | null;
+  description: string;
   type: "learning" | "practice" | "break";
   order: number;
 }

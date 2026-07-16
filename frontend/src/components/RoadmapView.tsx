@@ -6,7 +6,7 @@ interface Step {
   id: string;
   title: string;
   duration: number;
-  description?: string | null;
+  description: string;
   type: StepType;
   order: number;
 }

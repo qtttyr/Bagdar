@@ -25,7 +25,7 @@ export default function MapPage() {
     description: string;
     type: StepType;
     duration: number;
-    checklist?: ChecklistItem[];
+    checklist: ChecklistItem[];
   } | null>(null);
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean[]>>({});
 

@@ -97,7 +97,7 @@ export async function POST(request: Request): Promise<Response> {
     id: s.id,
     title: s.title,
     duration: s.duration,
-    description: s.description ?? null,
+    description: s.description ?? "",
     type: s.type as RoadmapStep["type"],
     order: s.order,
     checklist: (s.checklist ?? []).map((c: { text: string; type: string }) => ({

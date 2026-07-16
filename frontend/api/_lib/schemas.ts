@@ -73,7 +73,7 @@ export const ROADMAP_SCHEMA = {
               },
             },
           },
-          required: ["id", "title", "duration", "type", "order"],
+          required: ["id", "title", "duration", "description", "type", "order", "checklist"],
           additionalProperties: false,
         },
       },
