@@ -1,177 +1,215 @@
 # 🚀 Baǵdar Deployment Guide
 
-## Обзор
+## Architecture — Two Backends
 
-- **Frontend**: React + TypeScript + Vite + PWA → Deploy на Vercel
-- **Backend**: FastAPI + Python → Deploy на Google Cloud Run
+```
+                        ┌─────────────────────┐
+                        │   Vercel (Hobby)     │
+                        │                      │
+                        │  ┌───────────────┐   │
+   User ───────────────►│  │ Frontend (PWA) │   │
+                        │  │  /frontend/dist │   │
+                        │  └───────┬───────┘   │
+                        │          │            │
+                        │  ┌───────▼───────┐   │
+                        │  │ API (Functions)│   │
+                        │  │  Groq AI       │   │
+                        │  │  gpt-oss-120b  │   │
+                        │  └───────────────┘   │
+                        └─────────────────────┘
+
+   Future production server:
+   Python FastAPI + Gemini (when you buy a server)
+```
+
+### Free Tier (Vercel Hobby + Groq)
+- **Vercel Functions**: 1M invocations/mo, 4 CPU-hrs, 360 GB-hrs memory
+- **Groq API**: Rate-limited but generous free tier, ~6000 req/day
+- **~1000 users** fit comfortably within free limits
 
 ---
 
-## Part 1: Подготовка репозитория
+## Prerequisites
 
-### 1.1 Настройка Git
-```bash
-# В корневой папке проекта
-git init
-git add .
-git commit -m "Initial commit: Baǵdar MVP"
-```
-
-### 1.2 Проверь .gitignore
-Убедись что:
-- `.env` не добавлен в git
-- `node_modules/` игнорируется
-- `__pycache__/` игнорируется
+- Node.js 18+ installed
+- [Vercel CLI](https://vercel.com/docs/cli) (`npm i -g vercel`)
+- GitHub account (for auto-deploy)
+- **Groq API key** from [console.groq.com](https://console.groq.com)
 
 ---
 
-## Part 2: Vercel (Frontend)
+## Quick Deploy
 
-### 2.1 Подготовка
+### 1. Set up environment
+
 ```bash
-cd frontend
-
-# Установи vercel если нет
-npm install -g vercel
+# Clone, then from project root:
+npm install
+cd frontend && npm install && cd ..
 ```
 
-### 2.2 Деплой
+### 2. Deploy to Vercel
+
+```bash
+# One-command deploy:
+vercel --prod
+
+# You'll be prompted to:
+# - Log in / create Vercel account
+# - Link project
+# - Set GROQ_API_KEY environment variable
+```
+
+### 3. Set Groq API Key
+
+After first deploy, in **Vercel Dashboard → Your Project → Settings → Environment Variables**:
+
+```
+GROQ_API_KEY = gr_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Add to **Production** and **Preview** environments.
+
+### 4. Re-deploy
+
 ```bash
 vercel --prod
 ```
 
-Или через GitHub:
-1. Запушь код на GitHub
-2. Открой vercel.com
-3. Import project → выбери репозиторий
-4. Settings:
-   - Framework Preset: Vite
-   - Build Command: `npm run build`
-   - Output Directory: `dist`
-   - Install Command: `npm install`
-
-### 2.3 Environment Variables
-В Vercel Dashboard → Settings → Environment Variables:
-```
-VITE_API_BASE_URL=https://your-backend-url.run.app
-```
+Done. Your backend is live at `https://your-project.vercel.app/api/health`.
 
 ---
 
-## Part 3: Google Cloud Run (Backend)
+## Local Development
 
-### 3.1 Подготовка Docker
-Убедись что `backend/Dockerfile` существует и настроен правильно.
+### Option A: Vercel Dev (recommended)
 
-### 3.2 Деплой через Google Cloud Console
-
-1. **Google Cloud Console**: https://console.cloud.google.com
-2. **Cloud Run** → Create Service
-3. Настройки:
-   - Container image URL: (зальёшь позже)
-   - Region: выбери closest (europe-west1)
-   - Service name: `bagdar-api`
-   - Authentication: Allow unauthenticated
-4. **Variables**:
-   - `GEMINI_API_KEY`: твой ключ Gemini
-   - `ENVIRONMENT`: production
-   - `LOG_LEVEL`: WARNING
-
-### 3.3 Альтернатива: gcloud CLI
 ```bash
-# Аутентификация
-gcloud auth login
+# Terminal 1 — API + static files (Vercel dev server)
+cd bagdar
+vercel dev    # → http://localhost:3000
 
-# Установка проекта
-gcloud config set project YOUR_PROJECT_ID
-
-# Сборка и деплой
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/bagdar-api
-gcloud run deploy bagdar-api \
-  --image gcr.io/YOUR_PROJECT_ID/bagdar-api \
-  --platform managed \
-  --region europe-west1 \
-  --allow-unauthenticated \
-  --set-env-vars GEMINI_API_KEY=YOUR_KEY
+# Terminal 2 — Frontend hot-reload (Vite)
+cd bagdar/frontend
+npm run dev   # → http://localhost:5173
 ```
 
-### 3.4 Получи URL
-После деплоя получишь URL типа:
-```
-https://bagdar-api-xxx-xxx-xxx.a.run.app
-```
+### Option B: With Python backend (legacy)
 
----
-
-## Part 4: Подключение Frontend к Backend
-
-### 4.1 Обнови Environment в Vercel
-```
-VITE_API_BASE_URL=https://bagdar-api-xxx-xxx-xxx.a.run.app
-```
-
-### 4.2 Обнови CORS в Backend
-В `backend/app/main.py`:
-```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://твой-версель-домен.vercel.app"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-```
-
-### 4.3 Пересобери Frontend
 ```bash
+# Terminal 1 — Python backend
+cd backend
+.venv\Scripts\activate
+uvicorn app.main:app --reload --port 8000
+
+# Terminal 2 — Frontend pointing to Python backend
 cd frontend
-npm run build
-vercel --prod --force
+set VITE_API_BASE_URL=http://localhost:8000
+npm run dev
 ```
 
 ---
 
-## Проверка
+## Project Structure
 
-1. **Backend**: https://bagdar-api-xxx.a.run.app/api/v1/health
-2. **Frontend**: https://твой-проект.vercel.app
-3. Попробуй создать маршрут
+```
+bagdar/
+├── api/                      # Vercel Functions (NEW lightweight backend)
+│   ├── _lib/
+│   │   ├── types.ts          # Shared TypeScript types
+│   │   ├── quotes.ts         # Kazakh+Russian wisdom quotes
+│   │   ├── prompts.ts        # System prompts for 3 mentors
+│   │   ├── schemas.ts        # JSON Schema for structured AI output
+│   │   ├── groq.ts           # Groq client + structured generation
+│   │   └── utils.ts          # CORS, response helpers, validation
+│   ├── generate.ts           # POST /api/generate — main AI endpoint
+│   └── health.ts             # GET /api/health
+├── backend/                  # Python FastAPI (legacy, for future server)
+├── frontend/                 # React PWA (unchanged)
+├── vercel.json               # Vercel routing & function config
+├── package.json              # Root deps (groq-sdk, uuid, vercel CLI)
+└── .env.example              # Environment variable template
+```
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/generate` | Generate learning roadmap (Groq AI) |
+| GET | `/api/health` | Health check |
+| POST | `/api/v1/generate` | Backward-compat alias (rewrite) |
+| GET | `/api/v1/health` | Backward-compat alias (rewrite) |
+
+### POST /api/generate
+
+```json
+{
+  "topics": ["physics", "FastAPI"],
+  "duration_minutes": 180,
+  "persona": "abay",
+  "level": "beginner"
+}
+```
+
+Response: `{ plan: RoadmapResponse, quote: QuoteResponse }`
+
+---
+
+## CI/CD (GitHub Auto-Deploy)
+
+This project uses **Vercel Git Integration**:
+
+1. Push code to GitHub
+2. Vercel automatically detects the push
+3. Runs `npm install && cd frontend && npm install && npm run build`
+4. Deploys Functions from `api/` + static files from `frontend/dist/`
+5. Done.
+
+> ⚠️ Make sure `GROQ_API_KEY` is set in Vercel Environment Variables.
+> Without it, the API will return 502 errors.
+
+---
+
+## Remaining on GitHub
+
+The following configs are already in place:
+
+- `cloudbuild.yaml` — Google Cloud Build (for old Python backend)
+- `Dockerfile` — Docker build (for old Python backend)
+- `backend/Dockerfile` — Python container
+
+These are kept for future use when you buy a dedicated server.
+
+---
+
+## Cost Breakdown (1000 users)
+
+| Service | Cost |
+|---------|------|
+| Vercel Hobby | **$0/mo** (free tier) |
+| Groq API | **$0/mo** (free tier, ~6000 req/day) |
+| **Total** | **$0/mo** |
+
+Everything fits comfortably within free limits.
 
 ---
 
 ## Troubleshooting
 
-### ❌ CORS ошибка
-Проверь `allow_origins` в `main.py`
+### ❌ API returns 502
+- Check `GROQ_API_KEY` is set in Vercel Environment Variables
+- Verify the key is valid at console.groq.com
 
-### ❌ 500 на /generate
-Проверь логи в Cloud Run → Logs
-Убедись что `GEMINI_API_KEY` установлен
+### ❌ Frontend can't reach API
+- On Vercel: API is same-domain, nothing to configure
+- Local dev: set `VITE_API_BASE_URL=http://localhost:3000`
 
-### ❌ Старая версия
-```bash
-cd frontend
-npm run build
-vercel --prod --force
-```
+### ❌ CORS errors
+- The API handles CORS automatically for known origins
+- If testing from a custom domain, add it to `ALLOWED_ORIGINS` in `api/_lib/utils.ts`
 
----
-
-## Структура URLs после деплоя
-
-| Сервис | URL |
-|-------|-----|
-| Backend API | `https://bagdar-api-xxx.a.run.app` |
-| Frontend | `https://bagdar.vercel.app` |
-
----
-
-## Cost Estimates
-
-- **Vercel**: Free (для малых проектов)
-- **Cloud Run**: ~$0-5/месяц (при малом использовании)
-- **Gemini API**: платится по факту использования
-
----
-
-**Готово! 🚀**
+### ❌ Cold start slow
+- Vercel Functions cold start ~50ms for TypeScript
+- If it's slower, ensure `nodejs@22` runtime is set in `vercel.json`

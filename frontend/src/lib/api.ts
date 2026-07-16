@@ -3,22 +3,26 @@
  * Responsibilities:
  * - Provide a typed function `generateRoadmap` that posts to the backend generate endpoint.
  * - Expose a small `ApiError` class for consistent error handling.
- * - Support an overridable base URL (via Vite env var `VITE_API_BASE_URL`) and a sensible default.
+ * - Support an overridable base URL (via Vite env var `VITE_API_BASE_URL`) — when
+ *   unset, uses the same origin (Vercel same-domain deployment).
  * - Support request timeouts with AbortController.
  *
  * Notes:
  * - Types `RoadmapRequest` and `GenerateResponse` are imported from `@/types/api`.
- *   Make sure `src/types/api.ts` matches the backend Pydantic models.
+ * - On Vercel (production), frontend and API live on the same domain, so an
+ *   empty base URL means relative /api/* paths work automatically.
+ * - In development, set `VITE_API_BASE_URL=http://localhost:3000` to use
+ *   `vercel dev`, or keep pointing at your Python backend if you still run it.
  */
 
 import type { RoadmapRequest, GenerateResponse } from "@/types/api";
 
 const DEFAULT_TIMEOUT_MS = 60000;
 
-// Prefer an environment-configured base URL; fall back to localhost backend.
+// Default to same-origin (empty string) so that Vercel deployments
+// just work without any env var. In dev, override via VITE_API_BASE_URL.
 const API_BASE =
-  (import.meta as any).env?.VITE_API_BASE_URL?.replace(/\/+$/, "") ??
-  "http://localhost:8000";
+  (import.meta as any).env?.VITE_API_BASE_URL?.replace(/\/+$/, "") ?? "";
 
 /**
  * ApiError - thrown on non-2xx responses or network failures.
